@@ -1,0 +1,6 @@
+{
+  "name": "CivicAI - Smart Civic Issue Reporting & Resolution Platform",
+  "description": "AI-powered civic issue reporting and resolution platform connecting citizens with municipal authorities for cleaner, safer, and smarter communities.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
