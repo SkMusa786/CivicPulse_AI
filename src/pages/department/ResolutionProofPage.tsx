@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useComplaints } from '../../hooks/useComplaints';
 import { uploadResolutionProof } from '../../services/departmentService';
+import { uploadImage } from '../../services/complaintService';
 import { Complaint, Department } from '../../types';
 import {
   CheckCircle2,
@@ -16,7 +17,7 @@ import {
   Check,
   RotateCcw,
 } from 'lucide-react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 
 export const ResolutionProofPage: React.FC = () => {
@@ -32,6 +33,7 @@ export const ResolutionProofPage: React.FC = () => {
   // Form fields
   const [beforeImage, setBeforeImage] = useState('');
   const [afterImage, setAfterImage] = useState('');
+  const [afterImageFile, setAfterImageFile] = useState<File | null>(null);
   const [workDescription, setWorkDescription] = useState('');
   const [materialsUsed, setMaterialsUsed] = useState('');
   const [workOrderNumber, setWorkOrderNumber] = useState('');
@@ -44,14 +46,14 @@ export const ResolutionProofPage: React.FC = () => {
     (c) => c.department === activeDept || (!c.department && c.aiAnalysis.recommendedDepartment === activeDept)
   );
 
-  const selectedComplaint = deptComplaints.find((c) => c.id === selectedComplaintId) || deptComplaints[0];
-  if (loading) return <div className="p-8 text-sm text-slate-500">Loading resolution queue...</div>;
-  if (error) return <div className="p-8 space-y-3"><p className="text-sm text-rose-600">{error}</p><button onClick={retry} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold">Retry</button></div>;
+  const eligibleComplaints = deptComplaints.filter((complaint) => complaint.status === 'In Progress');
+  const selectedComplaint = eligibleComplaints.find((c) => c.id === selectedComplaintId) || eligibleComplaints[0];
 
   useEffect(() => {
     if (selectedComplaint) {
       setSelectedComplaintId(selectedComplaint.id);
       setBeforeImage(selectedComplaint.imageUrl);
+      setAfterImageFile(null);
 
       if (selectedComplaint.resolutionProof) {
         setAfterImage(selectedComplaint.resolutionProof.afterImageUrl);
@@ -60,37 +62,29 @@ export const ResolutionProofPage: React.FC = () => {
         setWorkOrderNumber(selectedComplaint.resolutionProof.workOrderNumber || `WO-${selectedComplaint.id.split('-').pop()}`);
       } else {
         setWorkOrderNumber(`WO-${activeDept.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`);
-        // Default smart action description
-        setWorkDescription(
-          `Completed on-site civil repair in accordance with municipal standards. Restored surface integrity, cleared residual debris, and performed safety verification.`
-        );
-        setMaterialsUsed('Bituminous cold-patch aggregate, surface sealant, municipal compaction roller #CR-04');
-        // Pre-fill a realistic completed after-image
-        setAfterImage('https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=800&q=80');
+        setAfterImage('');
+        setWorkDescription('');
+        setMaterialsUsed('');
       }
     }
   }, [selectedComplaintId, complaints]);
 
-  const sampleCompletedPresets = [
-    {
-      name: 'Asphalt Patch Repair (Roads)',
-      url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-      name: 'Sanitized Dumpster Perimeter (Sanitation)',
-      url: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-      name: 'Restored LED Luminaire (Lighting)',
-      url: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=800&q=80',
-    },
-  ];
+  if (loading) return <div className="p-8 text-sm text-slate-500">Loading resolution queue...</div>;
+  if (error) return <div className="p-8 space-y-3"><p className="text-sm text-rose-600">{error}</p><button onClick={retry} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold">Retry</button></div>;
+  if (!selectedComplaint) {
+    return (
+      <div className="p-8 text-center text-sm text-slate-600">
+        <p>No assigned in-progress complaints are ready for resolution proof.</p>
+        <Link to="/officer/assigned" className="mt-3 inline-block font-semibold text-blue-600">View assigned work</Link>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedComplaint) return;
-    if (!afterImage) {
-      toast.error('Please upload or select an After image showing work completion.');
+    if (!afterImageFile) {
+      toast.error('Upload a real after photograph showing the completed work.');
       return;
     }
     if (!workDescription.trim()) {
@@ -101,9 +95,10 @@ export const ResolutionProofPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      const afterImageUrl = await uploadImage(afterImageFile);
       const res = await uploadResolutionProof(selectedComplaint.id, {
         beforeImageUrl: beforeImage || selectedComplaint.imageUrl,
-        afterImageUrl: afterImage,
+        afterImageUrl,
         workDescription,
         materialsUsed,
         workOrderNumber,
@@ -118,8 +113,8 @@ export const ResolutionProofPage: React.FC = () => {
           navigate(`/citizen/track?id=${res.id}`);
         }, 1200);
       }
-    } catch {
-      toast.error('Failed to submit resolution proof.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to submit resolution proof.');
     } finally {
       setIsSubmitting(false);
     }
@@ -154,7 +149,7 @@ export const ResolutionProofPage: React.FC = () => {
             onChange={(e) => setSelectedComplaintId(e.target.value)}
             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-semibold text-xs sm:text-sm text-slate-900 bg-white"
           >
-            {deptComplaints.map((c) => (
+            {eligibleComplaints.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.id} — {c.title} ({c.status})
               </option>
@@ -239,30 +234,33 @@ export const ResolutionProofPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Preset Selector for After Image */}
           <div className="space-y-2 pt-2 border-t border-slate-100">
-            <span className="text-xs font-semibold text-slate-500">
-              Select verified field completion photo preset:
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {sampleCompletedPresets.map((preset, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setAfterImage(preset.url)}
-                  className={`p-2 rounded-lg border text-left text-xs font-semibold transition-all ${
-                    afterImage === preset.url
-                      ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600'
-                      : 'border-slate-200 bg-slate-50 hover:bg-white text-slate-700'
-                  }`}
-                >
-                  <div className="aspect-video w-full rounded overflow-hidden mb-1 bg-slate-200">
-                    <img src={preset.url} alt={preset.name} className="w-full h-full object-cover" />
-                  </div>
-                  <span className="truncate block text-[11px]">{preset.name}</span>
-                </button>
-              ))}
-            </div>
+            <label className="text-xs font-semibold text-slate-700" htmlFor="resolution-photo">
+              Upload a real JPEG, PNG, or WEBP completion photograph (10 MB max)
+            </label>
+            <input
+              id="resolution-photo"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              required={!selectedComplaint?.resolutionProof}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+                  toast.error('Choose a JPEG, PNG, or WEBP image no larger than 10 MB.');
+                  event.target.value = '';
+                  return;
+                }
+                setAfterImageFile(file);
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result === 'string') setAfterImage(reader.result);
+                };
+                reader.onerror = () => toast.error('Unable to preview this photograph.');
+                reader.readAsDataURL(file);
+              }}
+              className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-2 file:font-semibold file:text-emerald-800"
+            />
           </div>
         </div>
 
@@ -341,7 +339,7 @@ export const ResolutionProofPage: React.FC = () => {
         {/* Submit */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-100 p-4 rounded-xl border border-slate-200">
           <div className="text-xs text-slate-600">
-            Submitting will permanently transition this ticket to <span className="font-bold text-emerald-800">RESOLVED</span> and trigger an email closure notification to the citizen.
+            Submitting will permanently transition this ticket to <span className="font-bold text-emerald-800">RESOLVED</span> and create an in-app notification for the citizen.
           </div>
 
           <button

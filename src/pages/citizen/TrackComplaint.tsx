@@ -114,9 +114,9 @@ export const TrackComplaint: React.FC = () => {
           </button>
         </form>
 
-        {/* Quick sample chips */}
+        {/* Recent tickets */}
         <div className="flex items-center gap-2 text-xs text-slate-500 pt-1 overflow-x-auto no-scrollbar">
-          <span className="font-semibold text-slate-400 whitespace-nowrap">Try example tickets:</span>
+          <span className="font-semibold text-slate-400 whitespace-nowrap">Your recent tickets:</span>
           {complaints.slice(0, 4).map((c) => (
             <button
               key={c.id}
@@ -139,7 +139,7 @@ export const TrackComplaint: React.FC = () => {
           <AlertTriangle className="w-10 h-10 mx-auto mb-2 text-amber-500 opacity-60" />
           <h3 className="text-base font-bold text-slate-800">Grievance Not Found</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            Please verify the ticket reference number or select one of the active sample complaints above.
+            Please verify the ticket reference number or submit a complaint to see it here.
           </p>
         </div>
       ) : (

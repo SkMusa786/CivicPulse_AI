@@ -147,7 +147,6 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
               <span className="font-medium text-slate-800 truncate">{fileName || 'civic-defect-photo.jpg'}</span>
               {fileSize && <span className="text-slate-400">({fileSize})</span>}
             </div>
-            <span className="text-slate-500 font-mono text-[11px]">Exif GPS tagged</span>
           </div>
 
           <input

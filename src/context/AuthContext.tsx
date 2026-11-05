@@ -18,6 +18,7 @@ interface AuthContextType {
   switchUser: (userId: string) => void;
   switchRole: (role: UserRole, department?: Department) => void;
   login: (email: string, password: string) => Promise<LoginResult>;
+  register: (name: string, email: string, password: string, phone?: string, ward?: string) => Promise<LoginResult>;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -134,6 +135,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const register = async (
+    name: string,
+    email: string,
+    password: string,
+    phone?: string,
+    ward?: string,
+  ): Promise<LoginResult> => {
+    try {
+      const response = await apiClient.post<{ token: string; user: User }>('/auth/register', {
+        name,
+        email,
+        password,
+        phone,
+        ward,
+      });
+      const { token, user } = response.data;
+      if (!token || !user?.id || !user.email || user.role !== 'citizen') {
+        return { success: false, error: 'Authentication server returned an invalid registration response.' };
+      }
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      setIsLoading(false);
+      saveCurrentUser(user);
+      return { success: true, user };
+    } catch (error: unknown) {
+      if (axios.isAxiosError<{ error?: string }>(error)) {
+        if (error.response?.data?.error) return { success: false, error: error.response.data.error };
+        if (error.code === 'ECONNABORTED') {
+          return { success: false, error: 'Registration timed out. Check the API server and try again.' };
+        }
+        return {
+          success: false,
+          error: `Cannot reach the authentication API at ${API_BASE_URL}. Start the backend and try again.`,
+        };
+      }
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An unexpected registration error occurred.',
+      };
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       currentUser,
@@ -142,6 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       switchUser,
       switchRole,
       login,
+      register,
       logout,
       isAuthenticated,
       isLoading,

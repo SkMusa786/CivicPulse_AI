@@ -5,7 +5,7 @@ import { Shield, User, Mail, Lock, Phone, MapPin, ArrowRight } from 'lucide-reac
 import toast, { Toaster } from 'react-hot-toast';
 
 export const Register: React.FC = () => {
-  const { login } = useAuth();
+  const { register } = useAuth();
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
@@ -13,16 +13,26 @@ export const Register: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [ward, setWard] = useState('Ward 14 - Metro Central');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) {
       toast.error('Please enter name and email');
       return;
     }
-    login(email, 'citizen');
-    toast.success('Registration successful! Welcome to CivicAI.');
-    navigate('/citizen/dashboard');
+    setIsSubmitting(true);
+    try {
+      const result = await register(name, email, password, phone, ward);
+      if (!result.success || !result.user) {
+        toast.error(result.error || 'Unable to create your account.');
+        return;
+      }
+      toast.success('Registration successful! Welcome to CivicAI.');
+      navigate('/citizen/dashboard');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -126,6 +136,8 @@ export const Register: React.FC = () => {
                 <input
                   type="password"
                   required
+                  minLength={8}
+                  maxLength={128}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -136,9 +148,10 @@ export const Register: React.FC = () => {
 
             <button
               type="submit"
+              disabled={isSubmitting}
               className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-1.5 pt-2"
             >
-              <span>Create Citizen Account</span>
+              <span>{isSubmitting ? 'Creating Account...' : 'Create Citizen Account'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </form>

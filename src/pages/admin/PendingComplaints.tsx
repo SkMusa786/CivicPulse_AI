@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useComplaints } from '../../hooks/useComplaints';
-import { verifyAndForwardComplaint, rejectComplaint } from '../../services/adminService';
+import { getOfficerDepartments, verifyAndForwardComplaint, rejectComplaint } from '../../services/adminService';
 import { Complaint, Department, Severity } from '../../types';
 import { StatusBadge } from '../../components/StatusBadge';
 import { MapPicker } from '../../components/MapPicker';
@@ -32,23 +32,23 @@ export const PendingComplaints: React.FC = () => {
   const [targetSeverity, setTargetSeverity] = useState<Severity>('High');
   const [adminNotes, setAdminNotes] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [departmentsList, setDepartmentsList] = useState<Department[]>([]);
 
   // Rejection modal state
   const [rejectionReason, setRejectionReason] = useState('');
 
+  useEffect(() => {
+    void getOfficerDepartments().then((departments) => {
+      setDepartmentsList(departments);
+      if (departments.length > 0) setTargetDept(departments[0]);
+    }).catch((loadError: unknown) => {
+      toast.error(loadError instanceof Error ? loadError.message : 'Unable to load department officers.');
+    });
+  }, []);
+
   const pendingList = complaints.filter((c) => c.status === 'Pending Admin Verification');
   if (loading) return <div className="p-8 text-sm text-slate-500">Loading verification queue...</div>;
   if (error) return <div className="p-8 space-y-3"><p className="text-sm text-rose-600">{error}</p><button onClick={retry} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold">Retry</button></div>;
-
-  const departmentsList: Department[] = [
-    'Public Works Department',
-    'Sanitation & Solid Waste',
-    'Electricity & Street Lighting',
-    'Water Supply & Sewerage Board',
-    'Horticulture & Parks',
-    'Traffic Engineering Division',
-    'Health & Safety Directorate',
-  ];
 
   const handleOpenApproveModal = (complaint: Complaint) => {
     setSelectedForApproval(complaint);
@@ -73,8 +73,8 @@ export const PendingComplaints: React.FC = () => {
         setComplaints((items) => items.map((item) => item.id === res.id ? res : item));
         setSelectedForApproval(null);
       }
-    } catch {
-      toast.error('Failed to verify complaint.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to verify complaint.');
     } finally {
       setIsProcessing(false);
     }
@@ -95,8 +95,8 @@ export const PendingComplaints: React.FC = () => {
         setSelectedForRejection(null);
         setRejectionReason('');
       }
-    } catch {
-      toast.error('Failed to reject complaint.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to reject complaint.');
     } finally {
       setIsProcessing(false);
     }
@@ -273,6 +273,7 @@ export const PendingComplaints: React.FC = () => {
                 <select
                   value={targetDept}
                   onChange={(e) => setTargetDept(e.target.value as Department)}
+                  disabled={departmentsList.length === 0}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-900 bg-white"
                 >
                   {departmentsList.map((d) => (
@@ -281,6 +282,9 @@ export const PendingComplaints: React.FC = () => {
                     </option>
                   ))}
                 </select>
+                {departmentsList.length === 0 && (
+                  <p className="mt-1 text-[11px] text-amber-700">No officer accounts are configured yet. Add an officer and assign a department before dispatching.</p>
+                )}
               </div>
 
               <div>
@@ -322,7 +326,7 @@ export const PendingComplaints: React.FC = () => {
               </button>
               <button
                 type="button"
-                disabled={isProcessing}
+                disabled={isProcessing || departmentsList.length === 0}
                 onClick={handleConfirmApproval}
                 className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-xs"
               >

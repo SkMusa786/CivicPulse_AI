@@ -1,13 +1,56 @@
-import React, { useState } from 'react';
-import { DEMO_USERS } from '../../data/mockUsers';
-import { User, UserRole } from '../../types';
+import React, { useEffect, useState } from 'react';
+import { createOfficer, getAdminUsers } from '../../services/adminService';
+import { Department, User, UserRole } from '../../types';
 import { Users, Shield, Building2, UserCheck, Plus, CheckCircle2, Search } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 export const UserManagement: React.FC = () => {
-  const [userList, setUserList] = useState<User[]>(DEMO_USERS);
+  const [userList, setUserList] = useState<User[]>([]);
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [addOfficerOpen, setAddOfficerOpen] = useState(false);
+  const [officerName, setOfficerName] = useState('');
+  const [officerEmail, setOfficerEmail] = useState('');
+  const [officerPassword, setOfficerPassword] = useState('');
+  const [officerDepartment, setOfficerDepartment] = useState<Department>('Public Works Department');
+
+  const loadUsers = async () => {
+    setIsLoading(true);
+    try {
+      setUserList(await getAdminUsers());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to load users.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadUsers(); }, []);
+
+  const handleCreateOfficer = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSaving(true);
+    try {
+      const officer = await createOfficer({
+        name: officerName,
+        email: officerEmail,
+        password: officerPassword,
+        department: officerDepartment,
+      });
+      setUserList((users) => [officer, ...users]);
+      setAddOfficerOpen(false);
+      setOfficerName('');
+      setOfficerEmail('');
+      setOfficerPassword('');
+      toast.success('Department officer account created.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to create officer account.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const filtered = userList.filter((u) => {
     if (roleFilter !== 'all' && u.role !== roleFilter) return false;
@@ -31,6 +74,7 @@ export const UserManagement: React.FC = () => {
             <span>Administrator</span>
           </span>
         );
+      case 'officer':
       case 'department':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
@@ -64,7 +108,7 @@ export const UserManagement: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => toast.success('Add Official form modal opened in demo mode')}
+          onClick={() => setAddOfficerOpen(true)}
           className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
@@ -86,7 +130,7 @@ export const UserManagement: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1">
-          {['all', 'admin', 'department', 'citizen'].map((r) => (
+          {['all', 'admin', 'officer', 'citizen'].map((r) => (
             <button
               key={r}
               type="button"
@@ -102,6 +146,11 @@ export const UserManagement: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {isLoading && <p className="text-sm text-slate-500">Loading database users...</p>}
+      {!isLoading && userList.length === 0 && (
+        <p className="text-sm text-slate-500">No user accounts were returned by the API.</p>
+      )}
 
       {/* Users Table */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
@@ -146,9 +195,7 @@ export const UserManagement: React.FC = () => {
                       {user.department || user.ward || 'General Resident'}
                     </span>
                   </td>
-                  <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
-                    {user.phone || '+1 (555) 000-0000'}
-                  </td>
+                  <td className="py-3 px-4 font-mono text-[11px] text-slate-600">{user.phone || '—'}</td>
                   <td className="py-3 px-4">
                     <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-[11px]">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -156,19 +203,53 @@ export const UserManagement: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => toast.success(`Viewing profile for ${user.name}`)}
-                      className="text-blue-600 hover:text-blue-800 font-semibold text-xs"
-                    >
-                      Manage
-                    </button>
+                    <span className="text-slate-400">—</span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        {addOfficerOpen && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+            <form onSubmit={handleCreateOfficer} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
+              <h2 className="text-lg font-bold text-slate-900">Create Department Officer</h2>
+              <label className="block text-xs font-semibold text-slate-700">
+                Full name
+                <input required minLength={2} maxLength={100} value={officerName} onChange={(event) => setOfficerName(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+              </label>
+              <label className="block text-xs font-semibold text-slate-700">
+                Email
+                <input required type="email" value={officerEmail} onChange={(event) => setOfficerEmail(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+              </label>
+              <label className="block text-xs font-semibold text-slate-700">
+                Temporary password (minimum 8 characters)
+                <input required type="password" minLength={8} maxLength={128} value={officerPassword} onChange={(event) => setOfficerPassword(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+              </label>
+              <label className="block text-xs font-semibold text-slate-700">
+                Department
+                <select value={officerDepartment} onChange={(event) => setOfficerDepartment(event.target.value as Department)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2">
+                  {[
+                    'Public Works Department',
+                    'Sanitation & Solid Waste',
+                    'Electricity & Street Lighting',
+                    'Water Supply & Sewerage Board',
+                    'Horticulture & Parks',
+                    'Traffic Engineering Division',
+                    'Health & Safety Directorate',
+                  ].map((department) => <option key={department} value={department}>{department}</option>)}
+                </select>
+              </label>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setAddOfficerOpen(false)} className="rounded-lg px-4 py-2 text-sm text-slate-600">Cancel</button>
+                <button type="submit" disabled={isSaving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+                  {isSaving ? 'Creating...' : 'Create Officer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );

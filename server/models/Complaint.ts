@@ -24,6 +24,7 @@ const complaintSchema = new Schema(
     citizen: { type: Schema.Types.Mixed, required: true },
     department: { type: String, index: true },
     assignedOfficer: { type: String },
+    assignedAt: { type: Date },
     rejectionReason: { type: String },
     aiAnalysis: { type: Schema.Types.Mixed, required: true },
     resolutionProof: { type: Schema.Types.Mixed },

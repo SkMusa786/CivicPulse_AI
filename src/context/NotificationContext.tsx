@@ -39,7 +39,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [isAuthenticated]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void load();
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [load]);
 
   const markAsRead = async (id: string) => {
     try {

@@ -12,6 +12,15 @@ interface MapPickerProps {
   className?: string;
 }
 
+const escapeHtml = (value: string): string =>
+  value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character] || character);
+
 export const MapPicker: React.FC<MapPickerProps> = ({
   latitude,
   longitude,
@@ -67,7 +76,7 @@ export const MapPicker: React.FC<MapPickerProps> = ({
       }).addTo(map);
 
       if (address) {
-        marker.bindPopup(`<b>Report Location</b><br/>${address}`).openPopup();
+        marker.bindPopup(`<b>Report Location</b><br/>${escapeHtml(address)}`).openPopup();
       }
 
       markerRef.current = marker;
@@ -96,7 +105,7 @@ export const MapPicker: React.FC<MapPickerProps> = ({
       if (markerRef.current) {
         markerRef.current.setLatLng([latitude, longitude]);
         if (address) {
-          markerRef.current.bindPopup(`<b>Report Location</b><br/>${address}`);
+          markerRef.current.bindPopup(`<b>Report Location</b><br/>${escapeHtml(address)}`);
         }
       }
     }
@@ -133,7 +142,7 @@ export const MapPicker: React.FC<MapPickerProps> = ({
       },
       (err) => {
         setLocating(false);
-        setGeoError(`Location access denied or unavailable (${err.message}). Using preset coordinates.`);
+        setGeoError(`Location access denied or unavailable (${err.message}). Set the issue location on the map.`);
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
@@ -165,7 +174,7 @@ export const MapPicker: React.FC<MapPickerProps> = ({
           <div className="flex items-center gap-2 truncate">
             <Compass className="w-3.5 h-3.5 text-blue-600 shrink-0" />
             <span className="font-mono tabular-nums text-slate-700">
-              {latitude.toFixed(5)}° N, {longitude.toFixed(5)}° W
+              {Math.abs(latitude).toFixed(5)}° {latitude < 0 ? 'S' : 'N'}, {Math.abs(longitude).toFixed(5)}° {longitude < 0 ? 'W' : 'E'}
             </span>
           </div>
           {!readOnly && (

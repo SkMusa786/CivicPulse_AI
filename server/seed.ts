@@ -10,6 +10,7 @@ const DEMO_ACCOUNTS = [
     email: 'officer@civicai.com',
     password: 'Officer@123',
     role: 'officer' as const,
+    department: 'Public Works Department',
   },
 ];
 
@@ -18,10 +19,14 @@ const seed = async (): Promise<void> => {
   for (const account of DEMO_ACCOUNTS) {
     const existing = await UserModel.findOne({ email: account.email }).select('+passwordHash');
     if (existing) {
-      if (existing.role !== account.role || existing.name !== account.name) {
+      if (
+        existing.role !== account.role ||
+        existing.name !== account.name ||
+        existing.department !== account.department
+      ) {
         await UserModel.updateOne(
           { _id: existing._id },
-          { $set: { role: account.role, name: account.name } },
+          { $set: { role: account.role, name: account.name, department: account.department } },
         );
         console.log(`Corrected demo account identity and role; preserved password: ${account.email}`);
       } else {

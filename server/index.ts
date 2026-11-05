@@ -9,10 +9,11 @@ import adminRoutes from './routes/admin';
 import departmentRoutes from './routes/department';
 import notificationRoutes from './routes/notifications';
 import aiRoutes from './routes/ai';
+import uploadRoutes from './routes/uploads';
 
 const app = express();
 app.use(helmet());
-app.use(cors({ origin: config.corsOrigin }));
+app.use(cors({ origin: config.corsOrigins }));
 app.use(express.json({ limit: '14mb' }));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
@@ -22,6 +23,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/department', departmentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 app.use((error: Error & { status?: number; type?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const status = error.status === 413 || error.type === 'entity.too.large' ? 413 : 500;

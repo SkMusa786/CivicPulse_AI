@@ -82,15 +82,29 @@ export const AdminDashboard: React.FC = () => {
     count: deptCounts[dept],
   }));
 
-  // Chart 4: Monthly trend simulated data
-  const monthlyData = [
-    { month: 'Jun', total: 42, resolved: 38 },
-    { month: 'Jul', total: 58, resolved: 52 },
-    { month: 'Aug', total: 71, resolved: 65 },
-    { month: 'Sep', total: 89, resolved: 81 },
-    { month: 'Oct', total: 95, resolved: 89 },
-    { month: 'Nov', total: 112, resolved: 104 },
-  ];
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  monthStart.setMonth(monthStart.getMonth() - 5);
+  const monthlyData = Array.from({ length: 6 }, (_, index) => {
+    const start = new Date(monthStart.getFullYear(), monthStart.getMonth() + index, 1);
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+    const resolved = complaints.filter((complaint) =>
+      complaint.statusTimeline.some((entry) =>
+        entry.status === 'Resolved' &&
+        new Date(entry.timestamp) >= start &&
+        new Date(entry.timestamp) < end
+      )
+    ).length;
+    return {
+      month: start.toLocaleDateString(undefined, { month: 'short' }),
+      total: complaints.filter((complaint) => {
+        const createdAt = new Date(complaint.createdAt);
+        return createdAt >= start && createdAt < end;
+      }).length,
+      resolved,
+    };
+  });
 
   const pendingList = complaints
     .filter((c) => c.status === 'Pending Admin Verification')

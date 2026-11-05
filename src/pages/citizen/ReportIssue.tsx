@@ -5,7 +5,8 @@ import { ImageUploader } from '../../components/ImageUploader';
 import { AIAnalysisLoader } from '../../components/AIAnalysisLoader';
 import { MapPicker } from '../../components/MapPicker';
 import { analyzeImageWithAI } from '../../services/aiService';
-import { createComplaint } from '../../services/complaintService';
+import { createComplaint, uploadImage } from '../../services/complaintService';
+import { useNotifications } from '../../context/NotificationContext';
 import {
   Category,
   Severity,
@@ -31,6 +32,7 @@ import toast, { Toaster } from 'react-hot-toast';
 
 export const ReportIssue: React.FC = () => {
   const { currentUser } = useAuth();
+  const { retry: refreshNotifications } = useNotifications();
   const navigate = useNavigate();
 
   // Step 1: Image
@@ -54,13 +56,13 @@ export const ReportIssue: React.FC = () => {
 
   // Step 4: Location
   const [location, setLocation] = useState<LocationInfo>({
-    address: '4th Cross Ave, Near Central Metro Gate 2',
-    latitude: 37.7749,
-    longitude: -122.4194,
-    ward: 'Ward 14 - Metro Central',
-    city: 'Metro City',
-    landmark: 'Next to Central Metro Gate 2',
+    address: '',
+    latitude: 20.5937,
+    longitude: 78.9629,
+    ward: '',
+    city: '',
   });
+  const [isLocationSelected, setIsLocationSelected] = useState(false);
 
   // Step 5: Submission & Confirmation
   const [confirmedAccurate, setConfirmedAccurate] = useState(false);
@@ -141,6 +143,7 @@ export const ReportIssue: React.FC = () => {
   };
 
   const handleLocationPicked = (lat: number, lng: number, manualAddress?: string) => {
+    setIsLocationSelected(true);
     setLocation((prev) => ({
       ...prev,
       latitude: lat,
@@ -172,16 +175,21 @@ export const ReportIssue: React.FC = () => {
       toast.error('Please check the confirmation box before submitting.');
       return;
     }
+    if (!isLocationSelected || !location.address.trim() || !Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) {
+      toast.error('Enter the street address and set the map pin to the actual issue location.');
+      return;
+    }
 
     setIsSubmitting(true);
 
     try {
+      const imageUrl = await uploadImage(selectedFile);
       const created = await createComplaint({
         title: problemTitle,
         category,
         severity,
         description,
-        imageUrl: previewUrl,
+        imageUrl,
         location,
         status: 'Pending Admin Verification',
         citizen: {
@@ -195,9 +203,10 @@ export const ReportIssue: React.FC = () => {
       });
 
       setSubmittedId(created.id);
+      await refreshNotifications();
       toast.success(`Complaint ${created.id} submitted successfully!`);
     } catch (e) {
-      toast.error('Failed to submit complaint. Please retry.');
+      toast.error(e instanceof Error ? e.message : 'Failed to submit complaint. Please retry.');
       console.error(e);
     } finally {
       setIsSubmitting(false);
@@ -252,7 +261,7 @@ export const ReportIssue: React.FC = () => {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Location Ward:</span>
-              <span className="text-slate-900 font-bold">{location.ward || 'Ward 14'}</span>
+              <span className="text-slate-900 font-bold">{location.ward || 'Not specified'}</span>
             </div>
           </div>
 
@@ -554,10 +563,13 @@ export const ReportIssue: React.FC = () => {
                       step="any"
                       value={location.latitude}
                       onChange={(e) =>
-                        setLocation((prev) => ({
-                          ...prev,
-                          latitude: parseFloat(e.target.value) || 0,
-                        }))
+                        {
+                          setIsLocationSelected(true);
+                          setLocation((prev) => ({
+                            ...prev,
+                            latitude: parseFloat(e.target.value) || 0,
+                          }));
+                        }
                       }
                       className="w-full px-3 py-1.5 text-xs font-mono rounded-lg border border-slate-300 bg-slate-50"
                     />
@@ -571,10 +583,13 @@ export const ReportIssue: React.FC = () => {
                       step="any"
                       value={location.longitude}
                       onChange={(e) =>
-                        setLocation((prev) => ({
-                          ...prev,
-                          longitude: parseFloat(e.target.value) || 0,
-                        }))
+                        {
+                          setIsLocationSelected(true);
+                          setLocation((prev) => ({
+                            ...prev,
+                            longitude: parseFloat(e.target.value) || 0,
+                          }));
+                        }
                       }
                       className="w-full px-3 py-1.5 text-xs font-mono rounded-lg border border-slate-300 bg-slate-50"
                     />

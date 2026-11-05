@@ -8,7 +8,11 @@ router.use(authenticate);
 router.get('/', async (req: AuthenticatedRequest, res, next) => {
   try {
     const notifications = await NotificationModel.find({
-      $or: [{ userId: req.auth!.userId }, { targetRole: req.auth!.role }, { targetRole: 'all' }],
+      $or: [
+        { userId: req.auth!.userId },
+        { userId: req.auth!.role, targetRole: req.auth!.role },
+        { targetRole: 'all' },
+      ],
     }).sort({ createdAt: -1 }).lean();
     res.json({ notifications: notifications.map((notification) => ({ ...notification, id: notification._id.toString() })) });
   } catch (error) {
@@ -19,7 +23,13 @@ router.get('/', async (req: AuthenticatedRequest, res, next) => {
 router.patch('/:id/read', async (req: AuthenticatedRequest, res, next) => {
   try {
     const notification = await NotificationModel.findOneAndUpdate(
-      { _id: req.params.id, userId: req.auth!.userId },
+      {
+        _id: req.params.id,
+        $or: [
+          { userId: req.auth!.userId },
+          { userId: req.auth!.role, targetRole: req.auth!.role },
+        ],
+      },
       { $set: { read: true } },
       { new: true },
     );

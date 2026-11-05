@@ -7,6 +7,8 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: ['citizen', 'admin', 'officer'], required: true, index: true },
     department: { type: String, trim: true },
+    phone: { type: String, trim: true, maxlength: 40 },
+    ward: { type: String, trim: true, maxlength: 120 },
     isDemoAccount: { type: Boolean, default: false, immutable: true },
   },
   { timestamps: true },

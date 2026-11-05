@@ -1,7 +1,10 @@
 import { GoogleGenAI } from '@google/genai';
+import { randomUUID } from 'node:crypto';
 import express, { Router, type Response } from 'express';
 import { authenticate, requireRole, type AuthenticatedRequest } from '../auth';
 import { config } from '../config';
+import { storeImage } from '../imageStorage';
+import { SpotGuardModel } from '../models/SpotGuard';
 
 const router = Router();
 const maxImageSize = '10mb';
@@ -54,7 +57,43 @@ const getClient = (res: Response): GoogleGenAI | null => {
     res.status(503).json({ error: 'Gemini AI is not configured. Set GEMINI_API_KEY on the API server.' });
     return null;
   }
-  return new GoogleGenAI({ apiKey: config.geminiApiKey });
+  return new GoogleGenAI({
+    apiKey: config.geminiApiKey,
+    httpOptions: {
+      timeout: 60_000,
+      retryOptions: { attempts: 3, initialDelay: 1, maxDelay: 5 },
+    },
+  });
+};
+
+const respondWithGeminiError = (res: Response, error: unknown, fallback: string): void => {
+  const details = error && typeof error === 'object'
+    ? error as { status?: number; code?: string; name?: string; message?: string }
+    : {};
+  console.error('Gemini request failed', {
+    name: details.name,
+    status: details.status,
+    code: details.code,
+    message: details.message,
+  });
+  if (details.status === 429 || details.code === 'RESOURCE_EXHAUSTED') {
+    res.status(429).json({ error: 'Gemini is rate limited or the project quota is exhausted. Please retry later.' });
+    return;
+  }
+  if (
+    details.status === 408 || details.status === 504 ||
+    details.code === 'DEADLINE_EXCEEDED' ||
+    details.name === 'AbortError' ||
+    /timeout|timed out/i.test(details.message || '')
+  ) {
+    res.status(504).json({ error: 'Gemini took too long to respond. Please retry with a smaller image.' });
+    return;
+  }
+  if (details.status === 401 || details.status === 403) {
+    res.status(503).json({ error: 'Gemini rejected the configured API credentials. Check GEMINI_API_KEY on the API server.' });
+    return;
+  }
+  res.status(502).json({ error: fallback });
 };
 
 const categories = [
@@ -152,8 +191,11 @@ router.post(
         },
       });
     } catch (error) {
-      console.error('Gemini civic image analysis failed', error);
-      res.status(502).json({ error: 'Gemini could not analyze this image. Please retry or complete the details manually.' });
+      respondWithGeminiError(
+        res,
+        error,
+        'Gemini could not analyze this image. Please retry or complete the details manually.',
+      );
     }
   },
 );
@@ -232,19 +274,40 @@ router.post(
         throw new Error('Gemini did not return a generated preview image.');
       }
 
+      const analysisId = `SG-${randomUUID().slice(0, 8).toUpperCase()}`;
+      const originalImageUrl = await storeImage(req.body, image.mimeType);
+      const beautifiedImageUrl = await storeImage(
+        Buffer.from(generatedPart.inlineData.data, 'base64'),
+        generatedPart.inlineData.mimeType,
+      );
+      const saved = await SpotGuardModel.create({
+        analysisId,
+        userId: req.auth!.userId,
+        analysis,
+        originalImageUrl,
+        beautifiedImageUrl,
+      });
+
       res.json({
         result: {
-          id: `SG-${Date.now()}`,
+          id: saved.analysisId,
           ...analysis,
-          originalImageUrl: `data:${image.mimeType};base64,${image.data}`,
-          beautifiedImageUrl: `data:${generatedPart.inlineData.mimeType};base64,${generatedPart.inlineData.data}`,
-          createdAt: new Date().toISOString(),
+          originalImageUrl: saved.originalImageUrl,
+          beautifiedImageUrl: saved.beautifiedImageUrl,
+          createdAt: saved.createdAt.toISOString(),
           previewLabel: 'AI-generated conceptual preview — not proof of completed work',
         },
       });
     } catch (error) {
-      console.error('Gemini SpotGuard analysis failed', error);
-      res.status(502).json({ error: 'SpotGuard could not analyze or generate a preview for this image. Please retry.' });
+      if (error instanceof Error && error.message.includes('Persistent image storage is not configured')) {
+        res.status(503).json({ error: error.message });
+        return;
+      }
+      respondWithGeminiError(
+        res,
+        error,
+        'SpotGuard could not analyze or generate a preview for this image. Please retry.',
+      );
     }
   },
 );

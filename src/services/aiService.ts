@@ -11,7 +11,7 @@ const imageRequestOptions = (
   onProgress?: AnalysisProgressCallback,
 ) => ({
   headers: { 'Content-Type': file.type },
-  timeout: 120000,
+  timeout: 240000,
   onUploadProgress: (event: { loaded: number; total?: number }) => {
     if (event.total && onProgress) {
       onProgress(1, 'Uploading image securely to CivicPulse AI...', Math.round((event.loaded / event.total) * 30));

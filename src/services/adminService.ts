@@ -1,8 +1,40 @@
 import { apiClient } from './api';
-import { Complaint, Department, Severity } from '../types';
+import { Complaint, Department, Severity, User } from '../types';
 
 const apiError = (error: any): Error =>
   new Error(error.response?.data?.error || 'Unable to complete administrator request');
+
+export const getOfficerDepartments = async (): Promise<Department[]> => {
+  try {
+    const response = await apiClient.get<{ officers: Array<{ department?: Department }> }>('/admin/officers');
+    return [...new Set(response.data.officers.flatMap((officer) => officer.department ? [officer.department] : []))];
+  } catch (error) {
+    throw apiError(error);
+  }
+};
+
+export const getAdminUsers = async (): Promise<User[]> => {
+  try {
+    const response = await apiClient.get<{ users: User[] }>('/admin/users');
+    return response.data.users;
+  } catch (error) {
+    throw apiError(error);
+  }
+};
+
+export const createOfficer = async (input: {
+  name: string;
+  email: string;
+  password: string;
+  department: Department;
+}): Promise<User> => {
+  try {
+    const response = await apiClient.post<{ user: User }>('/admin/officers', input);
+    return response.data.user;
+  } catch (error) {
+    throw apiError(error);
+  }
+};
 
 export const getAdminComplaints = async (): Promise<Complaint[]> => {
   try {
